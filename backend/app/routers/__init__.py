@@ -24,5 +24,6 @@ from app.routers import forecast as router_forecast
 from app.routers import tagmgr as router_tagmgr
 from app.routers import insight as router_insight
 from app.routers import dataval as router_dataval
+from app.routers import impact as router_impact
 
-ROUTERS = [router_metric, router_queryboard, router_segment, router_abtest, router_analysis, router_dashboard, router_delivery, router_funnel, router_cohort, router_attribution, router_alertconfig, router_reportsch, router_dimprop, router_datadrill, router_forecast, router_tagmgr, router_insight, router_dataval]
+ROUTERS = [router_metric, router_queryboard, router_segment, router_abtest, router_analysis, router_dashboard, router_delivery, router_funnel, router_cohort, router_attribution, router_alertconfig, router_reportsch, router_dimprop, router_datadrill, router_forecast, router_tagmgr, router_insight, router_dataval, router_impact]

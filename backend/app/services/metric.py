@@ -1,8 +1,14 @@
-"""指标口径业务规则：状态流转、字段校验与筛选口径都收在这里。"""
+"""指标口径业务规则：状态流转、字段校验与筛选口径都收在这里。
+
+口径发布时同步登记 ``metric_revision``，并交给 ``ImpactService`` 做影响分析；
+本模块只负责指标自身的状态与字段，不直接写验证队列。
+"""
 from __future__ import annotations
 
 from typing import Any
 
+from app import impact_keys as keys
+from app.services.impact import impact_service
 from app.store import store
 
 MODULE = "metric"
@@ -28,10 +34,19 @@ class MetricService:
             rows = [row for row in rows if row.get("status") == status]
         total = len(rows)
         start = max(page - 1, 0) * size
-        return rows[start:start + size], total
+        return [self._public(row) for row in rows[start:start + size]], total
+
+    def _public(self, row: dict[str, Any]) -> dict[str, Any]:
+        public = dict(row)
+        revision = keys.normalize_text(row.get("口径版本"))
+        public["metric_revision"] = revision
+        public["formula_hash"] = keys.formula_hash(row.get("计算公式"))
+        public["grain_hash"] = keys.grain_hash(row.get("统计粒度"))
+        return public
 
     def get_entry(self, entry_id: int) -> dict[str, Any] | None:
-        return store.find(MODULE, entry_id)
+        row = store.find(MODULE, entry_id)
+        return self._public(row) if row else None
 
     def create_entry(self, values: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
         missing = [field for field in REQUIRED_FIELDS if not str(values.get(field) or "").strip()]
@@ -43,8 +58,9 @@ class MetricService:
         entry["status"] = STATUS_ORDER[0]
         entry["pending"] = True
         entry["abnormal"] = False
+        entry["口径版本"] = keys.normalize_text(values.get("口径版本")) or "r1"
         rows.append(entry)
-        return entry, []
+        return self._public(entry), []
 
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(MODULE, entry_id)
@@ -58,4 +74,25 @@ class MetricService:
         entry["status"] = target
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
-        return entry, f"指标定义已{action}"
+        return self._public(entry), f"指标定义已{action}"
+
+    # ------------------------------------------------------------------
+    # 版本演进入口
+    # ------------------------------------------------------------------
+    def publish_revision(
+        self,
+        entry_id: int,
+        values: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
+        """发布一个新的口径版本，返回该版本的影响分析。
+
+        影响分析以 ``metric_id + grain_hash + baseline_uri + tolerance`` 为键；
+        只有真正绑定到变化字段的验证任务才会进入 affected。
+        """
+        row, message, analysis = impact_service.publish_revision(entry_id, values)
+        if row is None:
+            return None, message, None
+        return self.get_entry(entry_id), message, analysis
+
+    def impact(self, metric_id: str, revision: str | None = None) -> dict[str, Any]:
+        return impact_service.analyze(metric_id, revision)

@@ -70,10 +70,10 @@ import { request } from '@/api/client'
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/dataval'
-const columns = ["任务编号", "验证数据集", "验证类型", "基准数据", "对比维度", "差异阈值", "验证周期", "最近验证结果"]
+const columns = ["任务编号", "验证数据集", "验证类型", "基准数据", "对比维度", "差异阈值", "验证周期", "最近验证结果", "metric_revision", "conclusion_revision"]
 const actions = ["提交验证", "标记已验证", "标记异常"]
 const statuses = ["草稿", "验证中", "已验证", "异常"]
-const stats = [{"label": "验证任务总数", "value": 0}, {"label": "已验证任务", "value": 0}, {"label": "异常任务", "value": 0}]
+const stats = [{"label": "验证任务总数", "value": 0}, {"label": "已验证任务", "value": 0}, {"label": "异常任务", "value": 0}, {"label": "待补数任务", "value": 0}]
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -102,7 +102,10 @@ async function runAction(action: string, row: Row) {
       body: JSON.stringify({ action }),
     })
     if (!response.ok) {
-      throw new Error('数据验证动作未生效，请稍后重试')
+      const payload = await response.json()
+      if (!payload.ok) {
+        throw new Error(payload.message ?? '数据验证动作未生效')
+      }
     }
     await reload()
   } catch (error) {
@@ -121,6 +124,10 @@ async function reload() {
     const payload = await response.json()
     rows.value = payload.items ?? []
     total.value = payload.total ?? rows.value.length
+    stats[0].value = total.value
+    stats[1].value = rows.value.filter((row) => row.status === '已验证').length
+    stats[2].value = rows.value.filter((row) => row.status === '异常').length
+    stats[3].value = rows.value.filter((row) => row.conclusion_status === 'pending' || row.status === '验证中').length
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '数据验证列表读取失败'
   }

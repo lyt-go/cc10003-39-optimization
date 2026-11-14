@@ -19,6 +19,7 @@ const Forecast = () => import('@/views/forecast/index.vue')
 const Tagmgr = () => import('@/views/tagmgr/index.vue')
 const Insight = () => import('@/views/insight/index.vue')
 const Dataval = () => import('@/views/dataval/index.vue')
+const Impact = () => import('@/views/impact/index.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,6 +43,7 @@ const router = createRouter({
     { path: '/tagmgr', name: 'tagmgr', component: Tagmgr },
     { path: '/insight', name: 'insight', component: Insight },
     { path: '/dataval', name: 'dataval', component: Dataval },
+    { path: '/impact', name: 'impact', component: Impact },
   ],
 })
 

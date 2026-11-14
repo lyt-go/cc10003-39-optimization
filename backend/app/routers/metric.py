@@ -58,6 +58,31 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     return ActionResult(ok=True, message=message, entry=entry)
 
 
+@router.post("/{entry_id}/revisions", response_model=ActionResult)
+def publish_revision(entry_id: int, payload: EntryPayload) -> ActionResult:
+    """发布新口径版本并立即做影响分析。
+
+    请求体可带 ``metric_revision``、``formula``、``aggregation_grain``、
+    ``compare_axis``、``tolerance``、``baseline_uri``；未提供的字段沿用上一版。
+    """
+    entry, message, analysis = service.publish_revision(entry_id, payload.values)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=entry, impact=analysis)
+
+
+@router.get("/{entry_id}/impact")
+def get_impact(entry_id: int, metric_revision: str | None = Query(default=None)) -> dict:
+    """查看给定版本的影响集合；不传版本时按最新已发布版本计算。"""
+    entry = service.get_entry(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"指标定义 {entry_id} 不存在或已归档")
+    result = service.impact(str(entry.get("指标编号") or ""), metric_revision)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=str(result.get("message") or "影响分析不可用"))
+    return result
+
+
 @router.get("/export")
 def export_entries() -> dict[str, Any]:
     """导出指标口径清单：返回当前过滤条件下的全量数据。"""

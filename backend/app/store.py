@@ -7,13 +7,36 @@ from __future__ import annotations
 from typing import Any
 
 from app.seed import SEED_ROWS
+from app.seed_impact import DATAVAL_IMPACT_ROWS, IMPACT_SEED_ROWS
+
+
+def _merge_seed() -> dict[str, list[dict[str, Any]]]:
+    tables = {name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()}
+    # 口径换版链路需要验证任务携带指标绑定与样本；只覆盖 dataval 示例，其他模块原样保留。
+    tables["dataval"] = [dict(row) for row in DATAVAL_IMPACT_ROWS]
+    tables["metric"].append({
+        "id": 4,
+        "status": "已发布",
+        "pending": False,
+        "abnormal": False,
+        "指标编号": "METR-ORDER_COUNT",
+        "指标名称": "订单量",
+        "计算公式": "sum(paid_order_amount) / count(distinct order_id)",
+        "统计粒度": "order_date,region,channel",
+        "时间窗口": "每日",
+        "筛选条件": "paid_status = paid",
+        "精度位数": "2",
+        "口径版本": "r3",
+    })
+    for name, rows in IMPACT_SEED_ROWS.items():
+        tables.setdefault(name, [])
+        tables[name].extend(dict(row) for row in rows)
+    return tables
 
 
 class Store:
     def __init__(self) -> None:
-        self._tables: dict[str, list[dict[str, Any]]] = {
-            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
-        }
+        self._tables: dict[str, list[dict[str, Any]]] = _merge_seed()
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
